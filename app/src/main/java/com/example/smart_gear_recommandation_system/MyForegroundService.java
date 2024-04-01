@@ -6,6 +6,7 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Binder;
 import android.os.Build;
@@ -84,13 +85,16 @@ public class MyForegroundService extends Service {
     @SuppressLint("ObsoleteSdkInt")
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationManager notificationManager = getSystemService(NotificationManager.class);
+            if (notificationManager == null) {
+                return; // Unable to create notification channel
+            }
             CharSequence name = "My Foreground Service Channel";
             String description = "Channel for My Foreground Service";
             int importance = NotificationManager.IMPORTANCE_DEFAULT;
             NotificationChannel channel = new NotificationChannel(CHANNEL_ID, name, importance);
             channel.setDescription(description);
 
-            NotificationManager notificationManager = getSystemService(NotificationManager.class);
             notificationManager.createNotificationChannel(channel);
         }
     }
@@ -102,7 +106,7 @@ public class MyForegroundService extends Service {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("My Foreground Service")
                 .setContentText("Running...")
-//                .setSmallIcon(R.drawable.ic_notification)
+                .setSmallIcon(R.drawable.icon)
                 .setContentIntent(pendingIntent)
                 .build();
     }
@@ -111,20 +115,43 @@ public class MyForegroundService extends Service {
         // For demonstration, returning a random value between 0 and 100
         return new Random().nextInt(101);
     }
+    @SuppressLint("NotificationPermission")
     private void fetchDataAndCheckThreshold() {
         // Replace this with your logic to fetch data from API and check threshold
         Log.d(TAG, "Fetching data from API and checking threshold...");
         // Fetch data from API (replace this with your actual API call)
         final int fetchedValue = fetchDataFromAPI();
         Log.d(TAG, "fetched value : "+fetchedValue);
-        // Update UI on the main thread using Handler
-        mHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                // Update UI with fetched value
-                updateUI(fetchedValue);
+        if (fetchedValue > 50) {
+            // Build the notification
+            NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (notificationManager == null) {
+                return; // Unable to show notification
             }
-        });
+
+            // Create a notification channel for Android Oreo and above
+            createNotificationChannel();
+
+            // Create the notification content
+            String notificationContent = "Fetched value exceeds 50: " + fetchedValue;
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+                    .setSmallIcon(R.drawable.icon)
+                    .setContentTitle("Threshold Exceeded")
+                    .setContentText(notificationContent)
+                    .setPriority(NotificationCompat.PRIORITY_DEFAULT);
+
+            // Show the notification
+            notificationManager.notify(NOTIFICATION_ID, builder.build());
+        }
+
+        // Update UI on the main thread using Handler
+//        mHandler.post(new Runnable() {
+//            @Override
+//            public void run() {
+//                // Update UI with fetched value
+//                updateUI(fetchedValue);
+//            }
+//        });
     }
     private void updateUI(int value) {
         // Update UI with fetched value
