@@ -58,5 +58,17 @@
         android:layout_marginTop="30dp"
         />
 
+    <TextView
+        android:id="@+id/recommendedGearText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/recommended_gear"
+        android:textAlignment="center"
+        android:layout_gravity="center_horizontal"
+        android:textSize="20sp"
+        android:textColor="@color/white"
+        android:layout_marginTop="30dp"
+        />
+
 
 </LinearLayout>

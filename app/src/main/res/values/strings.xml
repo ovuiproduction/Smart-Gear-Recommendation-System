@@ -4,4 +4,5 @@
     <string name="start_service">Start Service</string>
     <string name="stop_service">Stop Service</string>
     <string name="rpm_value">RPM Value</string>
+    <string name="recommended_gear">Recommended Gear</string>
 </resources>

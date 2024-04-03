@@ -15,9 +15,22 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.util.Log;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.StringRequest;
+import com.android.volley.toolbox.Volley;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.util.Random;
 
@@ -28,19 +41,21 @@ public class MyForegroundService extends Service {
     private static final String CHANNEL_ID = "MyForegroundServiceChannel";
     private static final long FETCH_INTERVAL = 60000; // Fetch data every 1 minute
 
+    public static final String STOP_FOREGROUND_ACTION = "stopForeground";
+
+    private int rpm;
+    private int gear;
+
     Handler mHandler = new Handler(Looper.getMainLooper()); // Associates with the main (UI) thread's Looper
     private final Runnable mRunnable = new Runnable() {
         @Override
         public void run() {
             // Perform your task here, e.g., fetch data from API
             fetchDataAndCheckThreshold();
-
             // Schedule the next execution
             mHandler.postDelayed(this, FETCH_INTERVAL);
         }
     };
-
-    private TextView rpmValueText;
 
     public class LocalBinder extends Binder {
         MyForegroundService getService() {
@@ -54,10 +69,7 @@ public class MyForegroundService extends Service {
     public void onCreate() {
         super.onCreate();
         Log.d(TAG, "onCreate");
-
-        // Create a notification channel for Android Oreo and above
         createNotificationChannel();
-
         // Start the foreground service
         startForeground(NOTIFICATION_ID, createNotification());
     }
@@ -65,8 +77,22 @@ public class MyForegroundService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.d(TAG, "onStartCommand");
-        mHandler.postDelayed(mRunnable, FETCH_INTERVAL); // Start the periodic task
+        if (intent != null && STOP_FOREGROUND_ACTION.equals(intent.getAction())) {
+            stopForeground(true); // Remove the service from the foreground state
+            stopSelf(); // Stop the service
+        }
+        mHandler.postDelayed(mRunnable, FETCH_INTERVAL);
         return START_STICKY;
+    }
+
+    private void sendVariableToMainActivity() {
+        Intent intent = new Intent("custom-event-name");
+        Log.d(TAG, "rpm: "+rpm);
+        Log.d(TAG, "gear: "+gear);
+        intent.putExtra("rpm", rpm);
+        intent.putExtra("Gear", gear);
+        Log.d(TAG, "sendVariableToMainActivity: Data sent to Main-activity");
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
     }
 
     @Nullable
@@ -94,7 +120,6 @@ public class MyForegroundService extends Service {
             int importance = NotificationManager.IMPORTANCE_DEFAULT;
             NotificationChannel channel = new NotificationChannel(CHANNEL_ID, name, importance);
             channel.setDescription(description);
-
             notificationManager.createNotificationChannel(channel);
         }
     }
@@ -102,7 +127,6 @@ public class MyForegroundService extends Service {
     private Notification createNotification() {
         Intent notificationIntent = new Intent(this, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
-
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("My Foreground Service")
                 .setContentText("Running...")
@@ -110,61 +134,88 @@ public class MyForegroundService extends Service {
                 .setContentIntent(pendingIntent)
                 .build();
     }
-    private int fetchDataFromAPI() {
-        // Simulate fetching data from API (replace this with your actual API call)
-        // For demonstration, returning a random value between 0 and 100
-        return new Random().nextInt(101);
+    public interface DataCallback {
+        void onDataReceived(int data);
     }
+
+    private void fetchDataFromAPI(final DataCallback callback) {
+        String uri = "https://api.thingspeak.com/channels/2473881/feeds.json?api_key=W9WVHO2HLG3529ND&results=1";
+        StringRequest stringRequest = new StringRequest(Request.Method.GET, uri, new Response.Listener<String>() {
+            @Override
+            public void onResponse(String response) {
+                try {
+                    JSONObject jsonObject = new JSONObject(response);
+                    JSONArray jsonArray = jsonObject.getJSONArray("feeds");
+                    JSONObject jsonObjectFeeds = jsonArray.getJSONObject(0);
+                    String field1 = jsonObjectFeeds.getString("field1");
+                    int output = Integer.parseInt(field1);
+                    callback.onDataReceived(output); // Pass the fetched data back via callback
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                    callback.onDataReceived(-1); // Notify callback about error condition
+                }
+            }
+        }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                // Handle error response
+                callback.onDataReceived(-1); // Notify callback about error condition
+            }
+        });
+        RequestQueue requestQueue = Volley.newRequestQueue(getApplicationContext());
+        requestQueue.add(stringRequest);
+    }
+
+
     @SuppressLint("NotificationPermission")
     private void fetchDataAndCheckThreshold() {
-        // Replace this with your logic to fetch data from API and check threshold
         Log.d(TAG, "Fetching data from API and checking threshold...");
-        // Fetch data from API (replace this with your actual API call)
-        final int fetchedValue = fetchDataFromAPI();
-        Log.d(TAG, "fetched value : "+fetchedValue);
-        if (fetchedValue > 50) {
-            // Build the notification
-            NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-            if (notificationManager == null) {
-                return; // Unable to show notification
+        fetchDataFromAPI(new DataCallback() {
+            @Override
+            public void onDataReceived(int data) {
+                if (data != -1) {
+                    // Data fetched successfully, use it here
+                    Log.d(TAG, "fetched value : "+data);
+                    rpm = data;
+                    if(rpm>300 && rpm<700){
+                        gear=2;
+                    }else if(rpm>=700 && rpm<1500){
+                        gear=3;
+                    }else if(rpm>=1500){
+                        gear=4;
+                    }else{
+                        gear=1;
+                    }
+                    Log.d(TAG, "onDataReceived: rpm"+rpm);
+                    Log.d(TAG, "onDataReceived: gear"+gear);
+                    sendVariableToMainActivity();
+
+                    NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                    if (notificationManager == null) {
+                        return; // Unable to show notification
+                    }
+
+                    // Create a notification channel for Android Oreo and above
+                    createNotificationChannel();
+
+                    // Create the notification content
+                    String notificationContent = "Fetched value : " + data;
+                    NotificationCompat.Builder builder = new NotificationCompat.Builder(MyForegroundService.this, CHANNEL_ID);
+                    builder.setSmallIcon(R.drawable.icon);
+                    builder.setContentTitle("Threshold Exceeded");
+                    builder.setContentText(notificationContent);
+                    builder.setPriority(NotificationCompat.PRIORITY_DEFAULT);
+
+                    // Show the notification
+                    notificationManager.notify(NOTIFICATION_ID, builder.build());
+                    // Do whatever you want with the fetched data
+                } else {
+                    // Handle error condition
+                    Log.e(TAG, "Error fetching data from API");
+                    // Display an error message or handle the error condition appropriately
+                }
             }
-
-            // Create a notification channel for Android Oreo and above
-            createNotificationChannel();
-
-            // Create the notification content
-            String notificationContent = "Fetched value exceeds 50: " + fetchedValue;
-            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                    .setSmallIcon(R.drawable.icon)
-                    .setContentTitle("Threshold Exceeded")
-                    .setContentText(notificationContent)
-                    .setPriority(NotificationCompat.PRIORITY_DEFAULT);
-
-            // Show the notification
-            notificationManager.notify(NOTIFICATION_ID, builder.build());
-        }
-
-        // Update UI on the main thread using Handler
-//        mHandler.post(new Runnable() {
-//            @Override
-//            public void run() {
-//                // Update UI with fetched value
-//                updateUI(fetchedValue);
-//            }
-//        });
+        });
     }
-    private void updateUI(int value) {
-        // Update UI with fetched value
-        // For demonstration, updating a TextView named "textViewValue"
-        if (rpmValueText != null) {
-            Log.d(TAG, "updateUI: called update ui");
-            rpmValueText.setText(String.valueOf(value));
-        }
-    }
-
-    public void setTextViewValue(TextView rpmValueText) {
-        this.rpmValueText = rpmValueText;
-    }
-
 }
 
