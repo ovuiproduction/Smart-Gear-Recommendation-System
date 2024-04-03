@@ -69,20 +69,30 @@ public class MyForegroundService extends Service {
     public void onCreate() {
         super.onCreate();
         Log.d(TAG, "onCreate");
-        createNotificationChannel();
+        //createNotificationChannel();
         // Start the foreground service
-        startForeground(NOTIFICATION_ID, createNotification());
+        //startForeground(NOTIFICATION_ID, createNotification());
     }
 
+    @SuppressLint("ForegroundServiceType")
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.d(TAG, "onStartCommand");
-        if (intent != null && STOP_FOREGROUND_ACTION.equals(intent.getAction())) {
-            stopForeground(true); // Remove the service from the foreground state
-            stopSelf(); // Stop the service
+        if (intent != null) {
+            if (STOP_FOREGROUND_ACTION.equals(intent.getAction())) {
+                stopForegroundService();
+                return START_NOT_STICKY;
+            }
         }
+        createNotificationChannel();
+        startForeground(NOTIFICATION_ID, createNotification());
         mHandler.postDelayed(mRunnable, FETCH_INTERVAL);
         return START_STICKY;
+    }
+
+    private void stopForegroundService() {
+        stopForeground(true); // Remove the service from the foreground state
+        stopSelf(); // Stop the service
     }
 
     private void sendVariableToMainActivity() {
