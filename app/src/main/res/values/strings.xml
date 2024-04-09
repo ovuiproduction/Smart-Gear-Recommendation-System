@@ -5,4 +5,10 @@
     <string name="stop_service">Stop Service</string>
     <string name="rpm_value">RPM Value</string>
     <string name="recommended_gear">Recommended Gear</string>
+    <string name="gear">Gear</string>
+    <string name="recommanded_gear">....</string>
+    <string name="rGear">....</string>
+    <string name="rpmValueInitial">....</string>
+    <string name="gear_genius">Gear Genius</string>
+    <string name="precisionGear_adviser">PrecisionGear Adviser</string>
 </resources>
