@@ -149,7 +149,7 @@ public class MyForegroundService extends Service {
     }
 
     private void fetchDataFromAPI(final DataCallback callback) {
-        String uri = "https://api.thingspeak.com/channels/2473881/feeds.json?api_key=<Your_READ_API_KEY>&results=1";
+        String uri = "https://api.thingspeak.com/channels/<YOUR_CHANNEL_ID>/feeds.json?api_key=<Your_READ_API_KEY>&results=1";
         StringRequest stringRequest = new StringRequest(Request.Method.GET, uri, new Response.Listener<String>() {
             @Override
             public void onResponse(String response) {
